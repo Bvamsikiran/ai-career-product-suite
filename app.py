@@ -1,70 +1,93 @@
 import streamlit as st
 from groq import Groq
 
-st.set_page_config(page_title="AI Career Product Suite", layout="centered")
+st.set_page_config(page_title="AI Recipe Chef", layout="centered")
 
-st.title("AI Career Product Suite")
-st.subheader("Tailored for Game Developers, VFX Artists & Designers")
+st.title("AI Recipe Chef")
+st.subheader("Turn What's In Your Kitchen Into a Delicious Meal")
 
 # 1. Inputs from Streamlit UI
-sample_resume = st.text_area("Paste Resume / Facts:", height=200)
-sample_jd = st.text_area("Paste Target Job Description:", height=200)
+sample_ingredients = st.text_area("List Your Available Ingredients:", height=200, placeholder="e.g. chicken breast, rice, onion, garlic, soy sauce, eggs...")
 
-# 2. Prompt Templates (Defined WITHOUT the 'f' prefix)
-PROMPT_TEMPLATES = {
-    "LinkedIn Summary": """You are an expert executive career coach specializing in the gaming and interactive media industry. Write a compelling LinkedIn "About" Summary for a veteran candidate with 12 years of industry experience across AI game development, game design, and VFX art. Position them strategically for the target Job Description.
-STRICT RULES:
-1. Combine the candidate's 12-year background in AI game dev, design, and VFX with facts, skills, and metrics explicitly stated in the RESUME. NO hallucinations.
-2. Tone: Visionary, authoritative, and engaging. Maximum 3 short paragraphs highlighting technical depth and creative leadership.
-RESUME: {sample_resume}
-JOB DESCRIPTION: {sample_jd}""",
+with st.expander("Optional: Constraints & Preferences"):
+    equipment = st.text_input("Available Kitchen Equipment (optional):", placeholder="e.g. stovetop only, no oven, air fryer, instant pot")
+    dietary = st.text_input("Dietary Restrictions (optional):", placeholder="e.g. vegetarian, gluten-free, no dairy")
+    cuisine = st.text_input("Preferred Cuisine (optional):", placeholder="e.g. Italian, Mexican, Indian")
+    max_time = st.text_input("Max Cooking Time (optional):", placeholder="e.g. 30 minutes")
 
-    "LinkedIn DM": """You are an executive career coach in gaming and tech. Write a highly concise LinkedIn Direct Message (under 75 words) from a veteran AI gaming developer, designer, and VFX artist (12 yrs exp) to a lead recruiter or director for the target Job Description.
-STRICT RULES:
-1. Frame the outreach around 12 years of specialized gaming experience, using ONLY facts from the RESUME. NO hallucinations.
-2. Tone: Direct, respectful, and confident. Include a clear Call to Action (e.g., a brief 10-min chat).
-RESUME: {sample_resume}
-JOB DESCRIPTION: {sample_jd}""",
+# 2. System / Persona Prompt (Defined WITHOUT the 'f' prefix)
+SYSTEM_PROMPT = """You are an expert culinary AI assistant and executive chef. Your primary role is to analyze a user-provided list of available ingredients and generate viable, delicious, and creative recipes they can make using primarily what they have on hand.
 
-    "Cold Email": """You are an executive career coach. Write a targeted Cold Email from a 12-year veteran AI game developer, designer, and VFX artist to a hiring manager or studio director for the target Job Description.
-STRICT RULES:
-1. ONLY use facts from the RESUME. NO hallucinations.
-2. Must include a high-impact, professional Subject Line highlighting high-level game dev/AI experience.
-3. Tone: Executive-level, value-driven. Directly map 1–2 major technical or creative achievements from the resume to the studio's key requirements.
-RESUME: {sample_resume}
-JOB DESCRIPTION: {sample_jd}""",
+### INPUT PARSING RULES:
+1. The user will provide a list of available ingredients. They may also optionally specify constraints such as available kitchen equipment, dietary restrictions, preferred cuisine, or maximum cooking time.
+2. Assume standard pantry staples (water, salt, black pepper, basic cooking oil) are always available unless the user explicitly states otherwise.
 
-    "Cover Letter": """You are an expert executive career coach in the games industry. Write a formal Cover Letter for a veteran candidate with 12 years of experience in AI game development, game design, and VFX art, applying for the target Job Description.
-STRICT RULES:
-1. Base all specific accomplishments strictly on the RESUME. NO hallucinations.
-2. Structure: Formal greeting, impactful opening establishing 12 years of industry mastery across AI, design, and VFX, 2 body paragraphs demonstrating technical alignment and leadership value, and a confident closing.
-RESUME: {sample_resume}
-JOB DESCRIPTION: {sample_jd}"""
-}
+### CORE OPERATIONAL RULES:
+1. **Pantry Maximization**: Prioritize recipes that use the highest percentage of the provided input ingredients.
+2. **Missing Ingredients Handling**: If a suggested recipe requires 1–3 non-staple ingredients that the user did not list, explicitly highlight them as "Optional Additions" or "Missing Ingredients." Never assume the user has non-standard ingredients without calling them out.
+3. **Ingredient Substitutions**: If a core ingredient for a traditional dish is missing, suggest a plausible substitution using another ingredient from the user's provided list.
+4. **Accuracy & Safety**: Provide safe cooking temperatures, clear step-by-step instructions, and accurate preparation times.
 
-selected_option = st.selectbox("Select Asset to Generate:", list(PROMPT_TEMPLATES.keys()))
+### OUTPUT FORMAT:
+For every request, respond using the following structured layout for each suggested dish (provide 2 to 3 distinct recipe options ranging from simple/quick to more creative):
+
+---
+### Dish 1: [Name of Dish]
+**Style/Cuisine**: [e.g., Quick Stir-Fry, Italian-inspired, Mediterranean Salad]
+**Estimated Time**: Prep: [X] mins | Cook: [Y] mins
+
+#### Ingredients Used from Your List:
+- [Item 1]
+- [Item 2]
+
+#### Extra/Optional Staples Needed:
+- [e.g., Salt, Olive Oil, Garlic (if missing)]
+
+#### Step-by-Step Instructions:
+1. [Clear, sequential instruction]
+2. [Clear, sequential instruction]
+3. [Clear, sequential instruction]
+
+#### Chef's Tip / Substitution Note:
+- [Brief tip on technique, flavor tweak, or how to swap an item if needed]
+---
+
+### TONE & STYLE:
+Maintain an encouraging, practical, and clear tone. Do not include unnecessary conversational preamble before the recipes—jump straight into the suggestions."""
+
+USER_PROMPT_TEMPLATE = """AVAILABLE INGREDIENTS: {sample_ingredients}
+KITCHEN EQUIPMENT: {equipment}
+DIETARY RESTRICTIONS: {dietary}
+PREFERRED CUISINE: {cuisine}
+MAX COOKING TIME: {max_time}"""
 
 # 3. Execution Trigger
-if st.button("Generate Asset"):
-    if not sample_resume.strip() or not sample_jd.strip():
-        st.warning("Please provide both the Resume and the Job Description before generating.")
+if st.button("Generate Recipes"):
+    if not sample_ingredients.strip():
+        st.warning("Please list at least a few ingredients before generating recipes.")
     else:
         # Dynamically inject variables at runtime using .format()
-        final_prompt = PROMPT_TEMPLATES[selected_option].format(
-            sample_resume=sample_resume,
-            sample_jd=sample_jd
+        final_user_prompt = USER_PROMPT_TEMPLATE.format(
+            sample_ingredients=sample_ingredients,
+            equipment=equipment if equipment.strip() else "None specified",
+            dietary=dietary if dietary.strip() else "None specified",
+            cuisine=cuisine if cuisine.strip() else "No preference",
+            max_time=max_time if max_time.strip() else "No limit specified",
         )
-        
-        with st.spinner("Generating content via Groq API..."):
+
+        with st.spinner("Cooking up some recipe ideas via Groq API..."):
             try:
                 client = Groq(api_key=st.secrets["GROQ_API_KEY"])
                 response = client.chat.completions.create(
-                    messages=[{"role": "user", "content": final_prompt}],
+                    messages=[
+                        {"role": "system", "content": SYSTEM_PROMPT},
+                        {"role": "user", "content": final_user_prompt},
+                    ],
                     model="llama-3.3-70b-versatile",
                 )
-                
-                st.success("Generation Complete!")
-                st.markdown("### Generated Output")
+
+                st.success("Recipes Ready!")
+                st.markdown("### Generated Recipes")
                 st.write(response.choices[0].message.content)
             except Exception as e:
                 st.error(f"Error calling Groq API: {e}")
